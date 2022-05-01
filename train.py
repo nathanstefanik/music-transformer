@@ -83,6 +83,22 @@ def loss_fn(prediction, target, criterion=F.cross_entropy):
     # output is average over the number of values that were not masked
     return torch.sum(_loss) / torch.sum(mask)
 
+def custom_loss_fn(prediction, target, criterion=F.cross_entropy):
+    """
+    TODO: implement custom loss function
+
+    Args:
+        prediction: output of the model for some input
+        target: true value the model was supposed to predict
+        criterion: vanilla loss criterion
+
+    Returns:
+        some masked loss between prediction and target
+    """
+    raise NotImplementedError("Custom loss function to be implemented")
+
+    return loss
+
 
 def train_step(model: MusicTransformer, opt, sched, inp, tar):
     """
