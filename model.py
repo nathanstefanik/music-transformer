@@ -15,7 +15,7 @@ import torch
 from math import sqrt
 from torch import nn
 from hparams import hparams
-from layers import DecoderLayer, abs_positional_encoding
+from layers import DecoderLayer, abs_positional_encoding, AttentionRNN
 
 """
 Implementation of Music Transformer model, using torch.nn.TransformerDecoder
@@ -64,11 +64,14 @@ class MusicTransformer(nn.Module):
         self.d_ff = d_ff
         self.max_rel_dist = max_rel_dist,
         self.max_position = max_abs_position
+        # vocab size 416
         self.vocab_size = vocab_size
-
+        
         self.input_embedding = nn.Embedding(vocab_size, d_model)
         self.positional_encoding = abs_positional_encoding(max_abs_position, d_model)
         self.input_dropout = nn.Dropout(dropout)
+
+        self.attention = AttentionRNN(d_model)
 
         self.decoder = nn.TransformerDecoder(
             DecoderLayer(d_model=d_model, num_heads=num_heads, d_ff=d_ff, max_rel_dist=max_rel_dist,
@@ -102,6 +105,9 @@ class MusicTransformer(nn.Module):
 
         # input dropout
         x = self.input_dropout(x)
+
+        # pass through attention rnn
+        x = self.attention(x)
 
         # pass through decoder
         x = self.decoder(x, memory=None, tgt_mask=mask)
