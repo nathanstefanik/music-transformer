@@ -83,14 +83,14 @@ def loss_fn(prediction, target, criterion=F.cross_entropy):
     # output is average over the number of values that were not masked
     return torch.sum(_loss) / torch.sum(mask)
 
-def custom_loss_fn(prediction, target, criterion=F.cross_entropy):
+def custom_loss_fn(prediction, target):
     """
     TODO: implement custom loss function
 
     Args:
         prediction: output of the model for some input
         target: true value the model was supposed to predict
-        criterion: vanilla loss criterion
+        criterion: loss criterion
 
     Returns:
         some masked loss between prediction and target
