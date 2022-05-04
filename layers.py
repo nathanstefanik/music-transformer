@@ -317,6 +317,8 @@ class DecoderLayer(nn.Module):
         self.num_heads = num_heads
         self.max_rel_idst = max_rel_dist
 
+        self.lin = nn.Linear(d_model, d_model)
+        self.relu = nn.ReLU()
         self.mha = MultiHeadAttention(d_model, num_heads, max_rel_dist, bias)
         self.ffn = PointwiseFFN(d_model, d_ff, bias)
 
@@ -340,6 +342,7 @@ class DecoderLayer(nn.Module):
         Returns:
             output after passing through MHA and FFN blocks, along with intermediate layernorms and residual connections
         """
+
         # multi-head attention block
         attn_out = self.layernorm1(tgt)
         attn_out = self.mha(attn_out, attn_out, attn_out, mask=tgt_mask)
@@ -411,3 +414,80 @@ class AttentionRNN(nn.Module):
                 results = torch.cat((results,output),0)
 
         return results
+
+class CustomDecoderLayer(nn.Module):
+    """
+    Every TransformerDecoder layer consists of 2 sublayers:
+        1. Masked Multi-Head Attention
+        2. Pointwise Feedforward Network
+    In the original Transformer, each sublayer further employs a residual connection followed by a LayerNorm on the last
+    dimension. However, here the LayerNormalization will be placed before the residual connnection, as this Pre-LN
+    architecture does not generally require an explicitly designed learning rate schedule.
+    """
+    def __init__(self, d_model, num_heads, d_ff, max_rel_dist, bias=True, dropout=0.1, layernorm_eps=1e-6):
+        """
+        Args:
+            d_model (int): Transformer hidden dimension size
+            num_heads (int): number of heads along which to calculate attention
+            d_ff (int): intermediate dimension of FFN blocks
+            max_rel_dist (int): maximum relative distance between positions to consider in creating
+                                relative position embeddings; set to 0 to compute normal attention
+            bias (bool, optional): if set to False, all Linear layers in the Decoder will not learn
+                                   an additive bias. Default: True
+            dropout (float in [0, 1], optional): dropout rate for training the model
+            layernorm_eps (very small positive float, optional): epsilon for LayerNormalization
+        """
+        super(CustomDecoderLayer, self).__init__()
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.max_rel_idst = max_rel_dist
+
+        self.lin = nn.Linear(d_model, d_model)
+        self.relu = nn.ReLU()
+        self.attention = AttentionRNN(d_model)
+        
+        self.mha = MultiHeadAttention(d_model, num_heads, max_rel_dist, bias)
+        self.ffn = PointwiseFFN(d_model, d_ff, bias)
+
+        self.layernorm1 = nn.LayerNorm(normalized_shape=d_model, eps=layernorm_eps)
+        self.layernorm2 = nn.LayerNorm(normalized_shape=d_model, eps=layernorm_eps)
+
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    def forward(self, tgt, memory=None, tgt_mask=None,
+                memory_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None):
+        """
+        Forward pass through decoder layer. Designed to be able to use torch's nn.TransformerDecoder as the final model,
+        which is why memory and all parameters after tgt_mask are present but are unused.
+
+        Args:
+            tgt: input queries tensor from previous layer, named this way to use nn.TransformerDecoder
+            tgt_mask (optional, must be explicitly specified as a kwarg): tensor of with 1's indicating positions to
+                                                                          mask. Default: None
+
+        Returns:
+            output after passing through MHA and FFN blocks, along with intermediate layernorms and residual connections
+        """
+        # linear block
+        # lin_out = self.lin(tgt)
+        # lin_out = self.relu(lin_out)
+        # lin_out = self.lin(lin_out)
+        # lin_out = self.relu(lin_out)
+        attn_out = self.attention(tgt)
+
+        # multi-head attention block
+        # attn_out = self.layernorm1(lin_out)
+        attn_out = self.layernorm1(attn_out)
+        attn_out = self.mha(attn_out, attn_out, attn_out, mask=tgt_mask)
+        attn_out = self.dropout1(attn_out)
+        attn_out = tgt + attn_out
+
+        # pointwise ffn block
+        ffn_out = self.layernorm2(attn_out)
+        ffn_out = self.ffn(ffn_out)
+        ffn_out = self.dropout2(ffn_out)
+        ffn_out = ffn_out + attn_out
+
+        return ffn_out
+

@@ -15,7 +15,7 @@ import torch
 from math import sqrt
 from torch import nn
 from hparams import hparams
-from layers import DecoderLayer, abs_positional_encoding, AttentionRNN
+from layers import DecoderLayer, abs_positional_encoding, AttentionRNN, CustomDecoderLayer
 
 """
 Implementation of Music Transformer model, using torch.nn.TransformerDecoder
@@ -71,10 +71,16 @@ class MusicTransformer(nn.Module):
         self.positional_encoding = abs_positional_encoding(max_abs_position, d_model)
         self.input_dropout = nn.Dropout(dropout)
 
-        self.attention = AttentionRNN(d_model)
+        # self.attention = AttentionRNN(d_model)
 
+        # self.decoder = nn.TransformerDecoder(
+        #     DecoderLayer(d_model=d_model, num_heads=num_heads, d_ff=d_ff, max_rel_dist=max_rel_dist,
+        #                  bias=bias, dropout=dropout, layernorm_eps=layernorm_eps),
+        #     num_layers=num_layers,
+        #     norm=nn.LayerNorm(normalized_shape=d_model, eps=layernorm_eps)
+        # )
         self.decoder = nn.TransformerDecoder(
-            DecoderLayer(d_model=d_model, num_heads=num_heads, d_ff=d_ff, max_rel_dist=max_rel_dist,
+            CustomDecoderLayer(d_model=d_model, num_heads=num_heads, d_ff=d_ff, max_rel_dist=max_rel_dist,
                          bias=bias, dropout=dropout, layernorm_eps=layernorm_eps),
             num_layers=num_layers,
             norm=nn.LayerNorm(normalized_shape=d_model, eps=layernorm_eps)
@@ -107,7 +113,7 @@ class MusicTransformer(nn.Module):
         x = self.input_dropout(x)
 
         # pass through attention rnn
-        x = self.attention(x)
+        # x = self.attention(x)
 
         # pass through decoder
         x = self.decoder(x, memory=None, tgt_mask=mask)
